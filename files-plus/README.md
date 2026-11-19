@@ -20,6 +20,10 @@ Search includes hidden and Git-ignored files, skips `.git` and does not follow d
 
 Up/down selects a result. A click uses the chosen opening location. Enter uses the temporary Preview slot when paired; otherwise it uses the chosen location. Clear or Escape restores the tree with its expanded folders intact.
 
+## Multi-root agent context
+
+For every agent in a multi-root workspace, Files Plus sends the current root list when the workspace is first observed and when an agent starts. Each root addition or removal sends the revised list to every agent in that workspace. The message tells agents to inspect every root for harness or instruction files rather than treating the terminal directory as the sole project root.
+
 ## Keyboard workflow
 
 Use the [Files / Preview / terminal example](../preview-plus/examples/files-preview-agent.json) with both packages. It contains no personal paths or shortcuts; copying or selecting it is an explicit setup action. The entry command `files-plus.search` focuses search. Bind it only to a free key in your own cloned layout/setup if desired.
