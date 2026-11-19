@@ -99,7 +99,11 @@ Add folder works for local POSIX spaces, including ordinary single-folder spaces
 
 Existing workspace files use a captured expected-text write: preserve path spelling, string entries, unknown fields and two-space formatting; new folders use relative paths. A conflicting disk edit reloads instead of overwriting the file. A closed or replaced target cannot be recreated by a late completion.
 
-Files Plus sends every existing and newly observed agent in a workspace its current root list. Each root addition, removal or workspace-file reload that changes the list broadcasts the revised composition to that workspace's agents. The agent message identifies the workspace as multi-root and requires checking every root for applicable harness or instruction files before work begins. It uses `hc send`, so a failed delivery remains visible rather than silently claiming that an agent received the context.
+While the Files Plus panel is loaded, it sends existing and newly observed agents in a declared workspace the current root list. Root additions, removals and workspace-file reloads that change the list broadcast the revised composition to that workspace's agents. The message identifies the workspace as multi-root and asks agents to check every root for applicable harness or instruction files. It uses `hc send`, which submits a normal message rather than modifying an agent's system prompt or filesystem permissions; context cannot be guaranteed to arrive before an already-running agent begins work. Blocked dialogs are never forced.
+
+Delivery receipts and expiring ownership claims are shared between panel copies and survive mod reloads. Unchanged successful compositions are not resubmitted for the same observed terminal session. Failed sends include the transport error in a notification and remain pending until the agent's status changes or its roots change; unchanged failures do not retry on every redraw. Blocked agents wait for an eligible status. Queued sends revalidate the live agent, session, workspace composition and owner before dispatch. Root changes during a send are serialized, with the latest observed composition sent afterward.
+
+Closing a panel cancels its queued deliveries but cannot revoke an already-dispatched `hc send`. An in-flight claim stays reserved until completion or its 30-second lease expires; active senders renew every 10 seconds. After a crash or a lost completion, a takeover may resend an update whose receipt is unknown. This is not an exactly-once transport guarantee. Receipts identify sessions by address, space, reported app, and terminal creation time/PID when available; Herdr does not provide a universal agent conversation ID.
 
 ### Adaptive panel fitting
 
@@ -181,6 +185,13 @@ Use these persisted shared contracts. Compare values before writing, because a s
 "files-plus.revision": number
 "files-plus.open-location": "tab" | "pane" | "internal" // missing/invalid defaults to tab
 "preview-plus.target": Record<SpaceId, { file: string; root: string; on: string | null }>
+"files-plus.agent-context": Record<AgentAddress, {
+  session: string;
+  space: SpaceId;
+  delivered?: string; // JSON root-path signature
+  failed?: { roots: string; status: string | null };
+  claim?: { owner: string; id: string; expires: number; dispatched: boolean };
+}>
 ```
 
 `path` is resolved and absolute; `source` retains the declared spelling. `file: null` denotes an unsaved workspace. Retain the ten most recent saved config paths. Prune closed workspace mappings only when `machines()` reports the local layout as ready.
@@ -282,3 +293,9 @@ Installation follow-up: the three changed runtime files were installed in the ma
 `node --experimental-vm-modules --test files-plus/tests/location.test.mjs` exercises third-party pane focus, repeated terminal changes, independent spaces, local/remote identity (including terminal blocks), manual Browse, paired preview/pins, cold copies and removed spaces through the production location resolver. Eight of the eleven groups reproduce failures on the preceding `b0c43c1` runtime. These are host-model behavioral tests, not physical pointer/keyboard acceptance. No normal app-home installation or live UI changes are part of this verification.
 
 Final-code validation: all 216 Node tests passed with `node --experimental-vm-modules --test --test-concurrency=1 files-plus/tests/*.test.mjs preview-plus/tests/*.test.mjs mods-plus/tests/*.test.cjs tests/*.test.mjs`; the affected location/browsing/panel subset passed 31 tests, and `herdr-app check files-plus/mods/files-plus` passed on macOS / Herdr 0.1.16. The initial concurrent aggregate hit an unchanged Preview Plus PDF readiness timeout; the serial final-code run passed without changing that test. Physical UI acceptance and a new screenshot were deliberately not run, to leave the daily app undisturbed.
+
+### Agent workspace delivery verification (2026-11-19)
+
+`node --experimental-vm-modules --test files-plus/tests/agent-context.test.mjs files-plus/tests/panel.test.mjs files-plus/tests/workspace.test.mjs files-plus/tests/browsing.test.mjs files-plus/tests/location.test.mjs` passed all 47 tests. Seven agent-context groups cover initial/new agents, additions/removals, failure reasons and status-transition recovery, independent panel module copies sharing delivery ownership, reload deduplication, queued cancellation, in-flight root changes, and focus/browsing isolation. The restored `home` and `appHome` host exports are exercised through production FilesPanel imports and behavior.
+
+These checks use a simulated Herdr host and mocked `hc`; no messages were sent to real agents. After updating the local Linux app from Herdr 0.1.7 to the official 0.1.16 release, `herdr-app check files-plus/mods/files-plus` passed. The existing core remained at 0.1.13. No Files Plus runtime installation, live-window interaction acceptance, screenshot or exactly-once transport verification is claimed.
